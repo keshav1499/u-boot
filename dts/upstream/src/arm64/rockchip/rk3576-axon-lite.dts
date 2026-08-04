@@ -26,8 +26,6 @@
 		stdout-path = "serial2:1500000n8";
 	};
 
-
-
 	gpio-leds {
 		compatible = "gpio-leds";
 
@@ -41,32 +39,6 @@
 		 	linux,default-trigger = "default-on";
 		};
 	};
-
-	wireless_bluetooth: wireless-bluetooth {
-		compatible = "bluetooth-platdata";
-		clocks = <&hym8563>;
-		clock-names = "ext_clock";
-		uart_rts_gpios = <&gpio1 RK_PC2 GPIO_ACTIVE_LOW>;
-		pinctrl-names = "default", "rts_gpio";
-		pinctrl-0 = <&uart4m1_rtsn>, <&bt_reset_gpio>, <&bt_wake_gpio>,
-					<&bt_irq_gpio>;
-		pinctrl-1 = <&uart4_gpios>;
-		BT,wake_host_irq = <&gpio0 RK_PA0 GPIO_ACTIVE_HIGH>;
-		BT,wake_gpio     = <&gpio0 RK_PC2 GPIO_ACTIVE_HIGH>;
-		BT,reset_gpio    = <&gpio1 RK_PC7 GPIO_ACTIVE_HIGH>;
-		status = "okay";
-	};
-
-	wireless_wlan: wireless-wlan {
-		compatible = "wlan-platdata";
-		wifi_chip_type = "rtl8852bs";
-		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_host_wake_irq>, <&wifi_poweren_gpio>;
-		WIFI,host_wake_irq = <&gpio0 RK_PB3 GPIO_ACTIVE_HIGH>; //WIFI WAKE HOST
-		WIFI,poweren_gpio = <&gpio1 RK_PC6 GPIO_ACTIVE_HIGH>;  //WIFI REG ON
-		status = "okay";
-	};
-
 
 
 	vcc_sys: vcc5v0-sys {
@@ -195,24 +167,12 @@
 		vin-supply = <&vcc5v0_device>;
 	};
 
-	csi3v3: csi3v3 {
-		compatible = "regulator-fixed";
-		regulator-name = "csi3v3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		enable-active-high;
-		gpios = <&gpio4 RK_PA7 GPIO_ACTIVE_HIGH>;
-		regulator-boot-on;
-		regulator-always-on;
-		vin-supply = <&vcc5v0_device>;
-	};
-
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		clocks = <&hym8563>;
 		clock-names = "ext_clock";
 		pinctrl-names = "default";
-		pinctrl-0 = <&sdio_reset_wifi>;
+		pinctrl-0 = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
 		reset-gpios = <&gpio1 RK_PD5 GPIO_ACTIVE_LOW>;
 		status = "okay";
 	};
@@ -220,6 +180,8 @@
 	vbus5v0_typec: vbus5v0-typec {
 		compatible = "regulator-fixed";
 		regulator-name = "vbus5v0_typec";
+		regulator-always-on;
+		regulator-boot-on;
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
@@ -267,6 +229,26 @@
 
 &cpu_l3 {
 	cpu-supply = <&vdd_cpu_lit_s0>;
+};
+
+&gpio0 {
+	status = "okay"; 
+};
+
+&gpio1 {
+  status = "okay"; 
+};
+
+&gpio2 {
+	status = "okay"; 
+};
+
+&gpio3 {
+  status = "okay"; 
+};
+	
+&gpio4 {
+  status = "okay"; 
 };
 
 &gmac0 {
@@ -690,12 +672,71 @@
 	pinctrl-0 = <&i2c6m3_xfer>;
 	status = "okay";
 
-	eeprom@50 {
-		compatible = "belling,bl24c16f", "atmel,24c16";
-		reg = <0x50>;
-		pagesize = <16>;
-		read-only;
-		vcc-supply = <&vcc_3v3_s3>;
+	usbc0: fusb302@22 {
+		compatible = "fcs,fusb302";
+		reg = <0x22>;
+		interrupt-parent = <&gpio4>;
+		interrupts = <RK_PB3 IRQ_TYPE_LEVEL_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usbc0_int>;
+		vbus-supply = <&vbus5v0_typec>;
+		status = "okay";
+		//usb-sel-gpios = <&gpio2 RK_PD3 GPIO_ACTIVE_HIGH>;
+		//role-gpios = <&gpio4 RK_PA0 GPIO_ACTIVE_HIGH>;
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			port@0 {
+				reg = <0>;
+				usbc0_role_sw: endpoint@0 {
+					remote-endpoint = <&dwc3_0_role_switch>;
+				};
+			};
+		};
+
+		usb_con: connector {
+			compatible = "usb-c-connector";
+			label = "USB-C";
+			data-role = "dual";
+			power-role = "dual";
+			try-power-role = "sink";
+			op-sink-microwatt = <1000000>;
+
+			sink-pdos =
+				<PDO_FIXED(5000, 1000, PDO_FIXED_USB_COMM)>;
+			source-pdos =
+				<PDO_FIXED(5000, 3000, PDO_FIXED_USB_COMM)>;
+
+			altmodes {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				altmode@0 {
+					reg = <0>;
+					svid = <0xff01>;
+					vdo = <0xffffffff>;
+				};
+			};
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				port@0 {
+					reg = <0>;
+					usbc0_orien_sw: endpoint {
+						remote-endpoint = <&usbdp_phy0_orientation_switch>;
+					};
+				};
+
+				port@1 {
+					reg = <1>;
+					dp_altmode_mux: endpoint {
+						remote-endpoint = <&usbdp_phy0_dp_altmode_mux>;
+					};
+				};
+			};
+		};
 	};
 };
 
@@ -740,12 +781,6 @@
 		};
 	};
 
-	ufs {
-		ufs_refclk: ufs-refclk {
-    			rockchip,pins = <4 RK_PD1 1 &pcfg_pull_none>;
-		};
-	};
-
 	hym8563 {
 		hym8563_int: hym8563-int {
 			rockchip,pins = <0 RK_PA5 RK_FUNC_GPIO &pcfg_pull_up>;
@@ -786,44 +821,6 @@
 		};
 	};
 
-	wireless-bluetooth {
-		uart4_gpios: uart4-gpios {
-			rockchip,pins =
-				<1 RK_PC2 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		bt_reset_gpio: bt-reset-gpio {
-			rockchip,pins =
-				<1 RK_PC7 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		bt_wake_gpio: bt-wake-gpio {
-			rockchip,pins =
-				<0 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		bt_irq_gpio: bt-irq-gpio {
-			rockchip,pins =
-				<0 RK_PA0 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
-
-	wireless-wlan {
-		sdio_reset_wifi: sdio-reset-wifi {
-			rockchip,pins =
-				<1 RK_PD5 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		wifi_host_wake_irq: wifi-host-wake-irq {
-			rockchip,pins =
-				<0 RK_PB3 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-
-		wifi_poweren_gpio: wifi-poweren-gpio {
-			rockchip,pins =
-				<1 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
-		};
-	};
 };
 
 &sdmmc {
@@ -838,22 +835,6 @@
 	vmmc-supply = <&vcc_3v3_s3>;
 	vqmmc-supply = <&vccio_sd_s0>;
 	status = "okay";
-};
-
-
-&sfc0 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&fspi0_pins &fspi0_csn0>;
-	status = "okay";
-
-	flash@0 {
-		compatible = "jedec,spi-nor";
-		reg = <0>;
-		spi-max-frequency = <50000000>;
-		spi-rx-bus-width = <4>;
-		spi-tx-bus-width = <1>;
-		vcc-supply = <&vcc_1v8_s3>;
-	};
 };
 
 &u2phy0 {
@@ -885,16 +866,44 @@
 
 &usbdp_phy {
 	status = "okay";
+	orientation-switch;
+	svid = <0xff01>;
+	sbu1-dc-gpios = <&gpio4 RK_PC4 GPIO_ACTIVE_HIGH>;
+	sbu2-dc-gpios = <&gpio4 RK_PC5 GPIO_ACTIVE_HIGH>;
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		usbdp_phy0_orientation_switch: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&usbc0_orien_sw>;
+		};
+
+		usbdp_phy0_dp_altmode_mux: endpoint@1 {
+			reg = <1>;
+			remote-endpoint = <&dp_altmode_mux>;
+		};
+	};
 };
 
 &usb_drd0_dwc3 {
-	dr_mode = "host";
+	dr_mode = "otg";
 	status = "okay";
+	u-boot,dm-pre-reloc;
+
+	port {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		dwc3_0_role_switch: endpoint@0 {
+			reg = <0>;
+			remote-endpoint = <&usbc0_role_sw>;
+		};
+	};
 };
 
 &usb_drd1_dwc3 {
-	dr_mode = "host";
-	status = "okay";
+	dr_mode = "otg";
+	status = "disabled";
 };
 
 &vop {
